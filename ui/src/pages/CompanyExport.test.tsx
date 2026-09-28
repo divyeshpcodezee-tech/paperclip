@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ExportFidelityReport } from "@paperclipai/shared/portability-fidelity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CompanyExport, resolveExportPreviewImageSrc } from "./CompanyExport";
+import { CompanyExport, resolveExportPreviewImageSrc, encodeExportFilePath, decodeExportFilePath } from "./CompanyExport";
 
 const mockCompaniesApi = vi.hoisted(() => ({
   exportPreview: vi.fn(),
@@ -504,5 +504,40 @@ describe("CompanyExport", () => {
 
     expect(mockCompaniesApi.exportFidelity).toHaveBeenCalledWith("company-1");
     expect(container.textContent).not.toContain("Not included in this export");
+  });
+});
+
+describe("export file path URL encoding", () => {
+  it("round-trips paths with %, #, ?, and spaces", () => {
+    const paths = [
+      "README.md",
+      "agents/ceo/AGENT.md",
+      "notes/100% complete.md",
+      "docs/section#1/overview.md",
+      "q/what?next.md",
+      "folder with spaces/file name.md",
+    ];
+
+    for (const path of paths) {
+      expect(decodeExportFilePath(encodeExportFilePath(path))).toBe(path);
+    }
+  });
+
+  it("encodes special characters per path segment", () => {
+    expect(encodeExportFilePath("notes/100% complete.md")).toBe(
+      "notes/100%25%20complete.md",
+    );
+    expect(encodeExportFilePath("docs/section#1/overview.md")).toBe(
+      "docs/section%231/overview.md",
+    );
+  });
+
+  it("still decodes legacy encodeURI-style paths without #", () => {
+    expect(decodeExportFilePath(encodeURI("agents/ceo/AGENT.md"))).toBe(
+      "agents/ceo/AGENT.md",
+    );
+    expect(decodeExportFilePath(encodeURI("folder with spaces/file.md"))).toBe(
+      "folder with spaces/file.md",
+    );
   });
 });
